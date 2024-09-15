@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IROH - Predicting Wildfires, Protecting Tommo</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+
+    <style>
+        /* Basic page and map styling */
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #f0f0f0;
+        }
+
+        #header {
+            height: 60px;
+            width: 100%;
+            background-color: #1f1f1f;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+            position: fixed;
+            top: 0;
+            z-index: 1000;
+        }
+
+        #header img {
+            height: 40px;
+        }
+
+        #header h1 {
+            font-size: 24px;
+            color: #f0f0f0;
+        }
+
+        #map {
+            height: calc(100vh - 60px); /* Adjusted for header */
+            width: 80%;
+            float: right;
+            margin-top: 60px; /* Account for the header */
+        }
+
+        /* Sidebar styling */
+        #sidebar {
+        height: calc(100vh - 60px); /* Adjusted for header */
+        width: 20%; /* Fixed width for sidebar */
+        position: fixed;
+        top: 60px; /* Below the header */
+        left: 0;
+        background-color: #1f1f1f;
+        padding: 20px;
+        box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
+        box-sizing: border-box; /* Ensure padding does not affect width */
+    }
+
+        #sidebar h2 {
+            text-align: center;
+            color: #f0f0f0;
+        }
+
+        #sidebar label {
+            display: block;
+            margin-bottom: 10px;
+            color: #f0f0f0;
+        }
+
+        #sidebar input[type="checkbox"] {
+            margin-right: 10px;
+        }
+
+        #sidebar button {
+            display: block;
+            margin: 20px auto;
+            padding: 10px;
+            background-color: #29BB74;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        #sidebar button:hover {
+            background-color: #208b58;
+        }
+
+        /* Popup button styling */
+        .leaflet-popup-content button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .leaflet-popup-content button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header with Logo -->
+    <div id="header">
+        <img src="IROH.png" alt="Logo" />
+        <h1></h1>
+    </div>
+
+    <!-- Sidebar for Filters -->
+    <div id="sidebar">
+        <h2>Filters</h2>
+        <label>
+            <input type="checkbox" id="filterHigh" checked> High Risk Areas
+        </label>
+        <label>
+            <input type="checkbox" id="filterMedium" checked> Medium Risk Areas
+        </label>
+        <label>
+            <input type="checkbox" id="filterLow" checked> Low Risk Areas
+        </label>
+        <button onclick="applyFilters()">Apply Filters</button>
+        <h2>High Risk</h2>
+        <label id="highRiskCountLabel">
+            1 high risk area detected
+        </label>
+        <button id="toggle-draw">Set Firebreaks</button>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script>
+        // Initialize the map, centered on Greece, with a normal (light) tile layer
+        var map = L.map('map').setView([39.2942, 21.9943], 11);
+
+        // Add OpenStreetMap normal tile layer (light mode)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        var drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+
+            var drawControl = new L.Control.Draw({
+                draw: {
+                    polyline: true,
+                    polygon: true,
+                    rectangle: true,
+                    circle: true,
+                    marker: true
+                },
+                edit: {
+                    featureGroup: drawnItems,
+                    remove: true
+                }
+            });
+            map.addControl(drawControl);
+
+            // Handle the draw events
+            map.on(L.Draw.Event.CREATED, function (e) {
+                var layer = e.layer;
+                drawnItems.addLayer(layer);
+            });
+
+            var drawingMode = false;
+                document.getElementById('toggle-draw').addEventListener('click', function() {
+                    drawingMode = !drawingMode;
+                    if (drawingMode) {
+                        map.addControl(drawControl);
+                    } else {
+                        map.removeControl(drawControl);
+                    }
+                });
+
+
+
+        var geojsonData = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "id": "21",
+                    "type": "Feature",
+                    "properties": {
+                        "id": 22,
+                        "risk": "high"
+                    },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [21.84, 39.24], 
+                                [21.9, 39.25], 
+                                [21.9, 39.27], 
+                                [21.84, 39.28], 
+                                [21.82, 39.27],
+                            ]
+                        ]
+                    }
+                },
+                {
+                    "id": "25",
+                    "type": "Feature",
+                    "properties": {
+                        "id": 23,
+                        "risk": "medium"
+                    },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [21.8, 39.2],
+                                [21.93, 39.2], 
+                                [21.94, 39.3], 
+                                [21.77, 39.28], 
+                                [21.77, 39.27],
+                            ]
+                        ]
+                    }
+                },
+                {
+                    "id": "22",
+                    "type": "Feature",
+                    "properties": {
+                        "id": 23,
+                        "risk": "medium"
+                    },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [22.5, 38.9],
+                                [22.8, 38.9],
+                                [22.8, 39.2],
+                                [22.5, 39.2],
+                                [22.5, 38.9]
+                            ]
+                        ]
+                    }
+                },
+                {
+                    "id": "23",
+                    "type": "Feature",
+                    "properties": {
+                        "id": 24,
+                        "risk": "low"
+                    },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [22, 39.4],
+                                [22.0, 39.4], 
+                                [21.94, 39.295], 
+                                [21.9, 39.295], 
+                                [21.8, 39.28],
+                            ]
+                        ]
+                    }
+                }
+            ]
+        };
+
+        var geojsonLayer;
+
+        // Function to set the style of polygons based on risk level
+        function style(feature) {
+            switch (feature.properties.risk) {
+                case 'high': return { color: 'red', weight: 2 };
+                case 'medium': return { color: 'orange', weight: 2 };
+                case 'low': return { color: 'yellow', weight: 2 };
+                default: return { color: 'gray', weight: 2 };
+            }
+        }
+
+        // Function to add mouseover and clickable button on each polygon
+        function onEachFeature(feature, layer) {
+    var riskLevel = feature.properties.risk;
+    
+    layer.on('click', function (e) {  
+        // Define the buttons based on risk level
+        var buttonsHTML = '';
+
+        if (riskLevel === 'low') {
+            buttonsHTML = `
+                <div id="infoText" style="margin-top: 10px; color: green;">
+                Low probability: Maintain prepared and build ressilience
+                </div>
+                <button id="awarenessButton" style="cursor: pointer;">Start public Awareness program</button>
+                <button id="VegetationButton" style="cursor: pointer;">Routine Vegetation Management</button>
+                <button id="BurnButton style="cursor: pointer;">Locate controlled Burn areas</button>
+                <button id="warningButton style="cursor: pointer;">Maintain Warning Systems</button>
+                <button id="breakButton style="cursor: pointer;">Locate firebreak positions</button>
+            `;
+        } else if (riskLevel === 'medium') {
+            buttonsHTML = `
+                <div id="infoText" style="margin-top: 10px; color: green;">
+                Medium probability: Increase observation and prepare to act
+                </div>
+                <button id="PatrolButton" style="cursor: pointer;">Increase Monitoring of area"</button>
+                <button id="RestrictionsButton" style="cursor: pointer;">Impose restrictions on risky activities"</button>
+                <button id="firebreakButton" style="cursor: pointer;">Prepare firebreak areas"</button>
+                <button id="fuelButton" style="cursor: pointer;">Remove fuel from area"</button>
+            `;
+        } else if (riskLevel === 'high') {
+            buttonsHTML = `
+                <div id="infoText" style="margin-top: 10px; color: green;">
+                High probability: Ensure readiness for swift action 
+                </div>
+                <button id="BanButton" style="cursor: pointer;">Impose temporary total fire bans</button>
+                <button id="EvacuationButton" style="cursor: pointer;">Ensure evacuation readiness</button>
+                <button id="EmergeButton" style="cursor: pointer;">Deploy Emergency Ressources</button>
+                <button id="WetButton" style="cursor: pointer;">Increase moisture in the area</button>
+            `;
+        }
+
+        var popupContent = `
+            <div>
+                <p>${riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1)} risk</p>
+                ${buttonsHTML}
+            </div>
+        `;
+
+        // Bind the popup content to the polygon
+        layer.bindPopup(popupContent).openPopup();
+    });
+}
+
+        // Function to create or update the GeoJSON layer
+        function updateGeoJSONLayer(filteredData) {
+            if (geojsonLayer) {
+                map.removeLayer(geojsonLayer);  // Remove the previous layer
+            }
+            geojsonLayer = L.geoJSON(filteredData, {
+                style: style,  // Apply the style function
+                onEachFeature: onEachFeature
+            }).addTo(map);
+        }
+
+        // Apply filters based on sidebar selections
+        function applyFilters() {
+            var filterHigh = document.getElementById('filterHigh').checked;
+            var filterMedium = document.getElementById('filterMedium').checked;
+            var filterLow = document.getElementById('filterLow').checked;
+
+            // Filter GeoJSON data based on the selected risk levels
+            var filteredData = {
+                "type": "FeatureCollection",
+                "features": geojsonData.features.filter(function (feature) {
+                    var risk = feature.properties.risk;
+                    return (risk === 'high' && filterHigh) ||
+                           (risk === 'medium' && filterMedium) ||
+                           (risk === 'low' && filterLow);
+                })
+            };
+
+            // Update the map with the filtered GeoJSON data
+            updateGeoJSONLayer(filteredData);
+        }
+
+        // Initial load of GeoJSON data
+        updateGeoJSONLayer(geojsonData);
+    </script>
+
+</body>
+</html>
